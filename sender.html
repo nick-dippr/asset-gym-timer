@@ -7,11 +7,10 @@
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; max-width: 800px; margin: 0 auto; line-height: 1.5; }
-        .status { padding: 12px; margin: 10px 0; background: #333; border-radius: 8px; }
+        .status { padding: 12px; margin: 10px 0; background: #333; border-radius: 8px; font-weight: bold; }
+        #log { background: #111; padding: 10px; font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: scroll; }
         button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
         button.green { background: #5cb85c; color: white; }
-        button.red { background: #d9534f; color: white; }
-        #log { background: #111; padding: 10px; font-family: monospace; font-size: 0.9em; max-height: 300px; overflow-y: scroll; }
     </style>
 </head>
 <body>
@@ -20,7 +19,7 @@
     <div id="log"></div>
 
     <button class="green" onclick="connectCast()">🔗 Connect to Google TV</button>
-    <button onclick="checkSession()">Check Session Status</button>
+    <button onclick="checkSession()">Check Session</button>
 
     <h2>Timer Settings</h2>
     <input type="number" id="get-ready" value="10">
@@ -32,13 +31,13 @@
     <button class="green" onclick="sendStart()">▶️ START TIMER</button>
 
     <script>
-        let session = null;
+        let currentSession = null;
         const APP_ID = "BCFFA301";
         const logEl = document.getElementById('log');
 
         function log(msg) {
             console.log(msg);
-            logEl.innerHTML += msg + "<br>";
+            logEl.innerHTML += new Date().toLocaleTimeString() + ": " + msg + "<br>";
             logEl.scrollTop = logEl.scrollHeight;
         }
 
@@ -47,8 +46,8 @@
         }
 
         function connectCast() {
-            log("Attempting to connect...");
-            updateStatus("Connecting to Google TV...");
+            log("=== Starting connection attempt ===");
+            updateStatus("Connecting...");
 
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
@@ -56,32 +55,34 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
-            castContext.requestSession((s) => {
-                session = s;
-                log("✅ requestSession callback fired - Session received");
-                log("Session object: " + (s ? "valid" : "null"));
+            castContext.requestSession((session) => {
+                currentSession = session;
+                log("✅ SUCCESS: Session received!");
+                log("Session ID: " + session.getSessionId());
                 updateStatus("✅ Connected to TV!");
-            }, (error) => {
-                log("❌ requestSession error: " + error);
+            }, (errorCode) => {
+                log("❌ FAILED: " + errorCode);
                 updateStatus("Connection failed");
             });
         }
 
         function checkSession() {
-            log("Session check: " + (session ? "EXISTS" : "NULL"));
-            log("Session ID: " + (session ? session.getSessionId() : "N/A"));
+            log("Current session is: " + (currentSession ? "VALID" : "NULL"));
+            if (currentSession) {
+                log("Session ID = " + currentSession.getSessionId());
+            }
         }
 
         function sendMessage(data) {
-            log("sendMessage called with: " + JSON.stringify(data));
-            if (!session) {
-                log("ERROR: session is still null");
+            log("Attempting to send: " + data.command);
+            if (!currentSession) {
+                log("ERROR: No active session");
                 alert("Please connect to the TV first");
                 return;
             }
-            session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
+            currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data)
                 .then(() => log("Message sent successfully"))
-                .catch(err => log("Send failed: " + err));
+                .catch(err => log("Send error: " + err));
         }
 
         function sendStart() {
