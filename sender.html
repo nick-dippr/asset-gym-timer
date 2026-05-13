@@ -34,7 +34,7 @@
 
     <script>
         let session = null;
-        const APP_ID = "YOUR_APP_ID_HERE";   // ← Replace with your real App ID
+        const APP_ID = "BCFFA301";   // ← Your App ID inserted
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
@@ -50,7 +50,9 @@
             castContext.requestSession((s) => {
                 session = s;
                 updateStatus("✅ Connected to TV");
-            }, (err) => alert("Connection failed: " + err));
+            }, (err) => {
+                alert("Connection failed: " + err);
+            });
         }
 
         function sendMessage(data) {
