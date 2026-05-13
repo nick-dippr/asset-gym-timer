@@ -6,11 +6,33 @@
     <title>Asset Gym Timer Controller</title>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 25px; background: #1a1a1a; color: white; max-width: 720px; margin: 0 auto; }
-        .status { padding: 15px; margin: 15px 0; background: #333; border-radius: 8px; text-align: center; font-weight: bold; }
-        button { padding: 16px; margin: 10px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
-        button.green { background: #5cb85c; color: white; }
-        button.red { background: #d9534f; color: white; }
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 25px; 
+            background: #1a1a1a; 
+            color: white; 
+            max-width: 720px; 
+            margin: 0 auto; 
+        }
+        h1 { text-align: center; }
+        .status { 
+            padding: 15px; 
+            margin: 15px 0; 
+            background: #333; 
+            border-radius: 8px; 
+            text-align: center; 
+            font-weight: bold; 
+        }
+        input, button { 
+            padding: 15px; 
+            margin: 8px 0; 
+            width: 100%; 
+            font-size: 1.1em; 
+            border-radius: 8px; 
+        }
+        input { background: #333; color: white; border: 1px solid #555; }
+        button.green { background: #5cb85c; color: white; font-weight: bold; }
+        button.red { background: #d9534f; color: white; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -20,11 +42,11 @@
     <button class="green" onclick="connectCast()">🔗 Connect to Google TV</button>
 
     <h2>Timer Settings</h2>
-    <input type="number" id="get-ready" value="10">
-    <input type="text" id="round-time" value="04:00">
-    <input type="number" id="rest1" value="30">
-    <input type="number" id="rest2" value="30">
-    <input type="number" id="rounds" value="4">
+    <input type="number" id="get-ready" value="10" placeholder="Get Ready (sec)">
+    <input type="text" id="round-time" value="04:00" placeholder="Round Time (MM:SS)">
+    <input type="number" id="rest1" value="30" placeholder="Short Rest (sec)">
+    <input type="number" id="rest2" value="30" placeholder="Long Rest (sec)">
+    <input type="number" id="rounds" value="4" placeholder="Total Rounds">
 
     <button class="green" onclick="sendStart()">▶️ START TIMER</button>
     <button onclick="sendPause()">⏸️ PAUSE</button>
@@ -32,15 +54,16 @@
     <button class="red" onclick="sendReset()">🔄 RESET</button>
 
     <script>
+        let currentSession = null;
         const APP_ID = "BCFFA301";
-        let castSession = null;
+        const NAMESPACE = 'urn:x-cast:com.asset.gymtimer';
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
         }
 
         function connectCast() {
-            updateStatus("Connecting...");
+            updateStatus("Connecting to Google TV...");
 
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
@@ -48,22 +71,24 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
-            // Force launch the receiver
             castContext.requestSession((session) => {
-                castSession = session;
-                updateStatus("✅ Connected!");
-            }, (err) => {
-                updateStatus("Connection error");
-                console.error(err);
+                currentSession = session;
+                updateStatus("✅ Connected to TV!");
+                console.log("✅ Session established");
+            }, (error) => {
+                console.error("Connection error:", error);
+                updateStatus("❌ Connection failed");
             });
         }
 
         function sendMessage(data) {
-            if (!castSession) {
-                alert("Not connected yet");
+            if (!currentSession) {
+                alert("Please connect to the TV first");
                 return;
             }
-            castSession.sendMessage('urn:x-cast:com.asset.gymtimer', data);
+            currentSession.sendMessage(NAMESPACE, data)
+                .then(() => console.log("Message sent successfully"))
+                .catch(err => console.error("Send error:", err));
         }
 
         function sendStart() {
@@ -74,7 +99,7 @@
                 rest2: parseInt(document.getElementById('rest2').value) || 30,
                 totalRounds: parseInt(document.getElementById('rounds').value) || 4
             };
-            sendMessage({ command: 'LOAD_AND_START', config });
+            sendMessage({ command: 'LOAD_AND_START', config: config });
         }
 
         function sendPause()  { sendMessage({ command: 'PAUSE' }); }
