@@ -4,58 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asset Gym Timer Controller</title>
-    
-    <!-- CORRECT Cast Sender SDK URL -->
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
-    
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            padding: 30px; 
-            background: #1a1a1a; 
-            color: white; 
-            max-width: 700px; 
-            margin: 0 auto; 
-            line-height: 1.6;
-        }
-        h1 { text-align: center; }
-        .status { 
-            padding: 15px; 
-            margin: 15px 0; 
-            border-radius: 8px; 
-            background: #333; 
-            text-align: center;
-            font-weight: bold;
-        }
-        button { 
-            padding: 16px; 
-            margin: 10px 0; 
-            width: 100%; 
-            font-size: 1.2em; 
-            border-radius: 8px;
-            cursor: pointer;
-        }
+        body { font-family: Arial, sans-serif; padding: 30px; background: #1a1a1a; color: white; max-width: 700px; margin: 0 auto; }
+        .status { padding: 15px; margin: 15px 0; background: #333; border-radius: 8px; text-align: center; font-weight: bold; }
+        button { padding: 16px; margin: 10px 0; width: 100%; font-size: 1.2em; border-radius: 8px; }
         button.green { background: #5cb85c; color: white; }
-        button.red { background: #d9534f; color: white; }
     </style>
 </head>
 <body>
     <h1>Asset Gym Timer Controller</h1>
-    <div class="status" id="status">Loading Cast SDK...</div>
+    <div class="status" id="status">Ready</div>
 
-    <button class="green" onclick="connectCast()">🔗 Connect to Google TV Streamer</button>
-
-    <h2>Timer Settings</h2>
-    <input type="number" id="get-ready" value="10" placeholder="Get Ready (seconds)">
-    <input type="text" id="round-time" value="04:00" placeholder="Round Time (MM:SS)">
-    <input type="number" id="rest1" value="30" placeholder="Short Rest (seconds)">
-    <input type="number" id="rest2" value="30" placeholder="Long Rest (seconds)">
-    <input type="number" id="rounds" value="4" placeholder="Total Rounds">
-
-    <button class="green" onclick="sendStart()">▶️ START TIMER</button>
-    <button onclick="sendPause()">⏸️ PAUSE</button>
-    <button onclick="sendResume()">▶️ RESUME</button>
-    <button class="red" onclick="sendReset()">🔄 RESET</button>
+    <button class="green" onclick="connectCast()">🔗 Connect & Launch Timer on TV</button>
 
     <script>
         let session = null;
@@ -65,18 +26,8 @@
             document.getElementById('status').textContent = text;
         }
 
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                if (typeof cast !== 'undefined' && cast.framework) {
-                    updateStatus("✅ Cast SDK loaded — Ready to connect");
-                } else {
-                    updateStatus("❌ Cast SDK failed to load. Refresh page.");
-                }
-            }, 1500);
-        });
-
         function connectCast() {
-            updateStatus("Searching for your Google TV...");
+            updateStatus("Connecting to Google TV...");
             
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
@@ -86,35 +37,26 @@
 
             castContext.requestSession((s) => {
                 session = s;
-                updateStatus("✅ Successfully connected to TV!");
+                updateStatus("✅ Connected! Launching timer...");
+                
+                // Send a start command immediately
+                setTimeout(() => {
+                    session.sendMessage('urn:x-cast:com.asset.gymtimer', {
+                        command: 'LOAD_AND_START',
+                        config: {
+                            getReady: 10,
+                            roundTime: "04:00",
+                            rest1: 30,
+                            rest2: 30,
+                            totalRounds: 4
+                        }
+                    });
+                }, 1500);
             }, (error) => {
+                updateStatus("❌ Failed: " + error);
                 console.error(error);
-                updateStatus("❌ Connection failed: " + error);
             });
         }
-
-        function sendMessage(data) {
-            if (!session) {
-                alert("Please connect to the TV first");
-                return;
-            }
-            session.sendMessage('urn:x-cast:com.asset.gymtimer', data);
-        }
-
-        function sendStart() {
-            const config = {
-                getReady: parseInt(document.getElementById('get-ready').value) || 10,
-                roundTime: document.getElementById('round-time').value || "04:00",
-                rest1: parseInt(document.getElementById('rest1').value) || 30,
-                rest2: parseInt(document.getElementById('rest2').value) || 30,
-                totalRounds: parseInt(document.getElementById('rounds').value) || 4
-            };
-            sendMessage({ command: 'LOAD_AND_START', config });
-        }
-
-        function sendPause()  { sendMessage({ command: 'PAUSE' }); }
-        function sendResume() { sendMessage({ command: 'RESUME' }); }
-        function sendReset()  { sendMessage({ command: 'RESET' }); }
     </script>
 </body>
 </html>
