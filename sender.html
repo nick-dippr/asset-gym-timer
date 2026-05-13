@@ -9,6 +9,7 @@
         body { font-family: Arial, sans-serif; padding: 25px; background: #1a1a1a; color: white; max-width: 720px; margin: 0 auto; }
         h1 { text-align: center; }
         .status { padding: 15px; margin: 15px 0; background: #333; border-radius: 8px; text-align: center; font-weight: bold; }
+        #log { background: #111; padding: 10px; font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: scroll; margin: 15px 0; }
         input, button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
         input { background: #333; color: white; border: 1px solid #555; }
         button.green { background: #5cb85c; color: white; font-weight: bold; }
@@ -17,7 +18,8 @@
 </head>
 <body>
     <h1>Asset Gym Timer Controller</h1>
-    <div class="status" id="status">Not connected</div>
+    <div class="status" id="status">Ready</div>
+    <div id="log"></div>
 
     <button class="green" onclick="connectCast()">🔗 Connect to Google TV</button>
 
@@ -36,12 +38,20 @@
     <script>
         let currentSession = null;
         const APP_ID = "BCFFA301";
+        const logEl = document.getElementById('log');
+
+        function log(msg) {
+            console.log(msg);
+            logEl.innerHTML += new Date().toLocaleTimeString() + ": " + msg + "<br>";
+            logEl.scrollTop = logEl.scrollHeight;
+        }
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
         }
 
         function connectCast() {
+            log("=== Connect attempt started ===");
             updateStatus("Connecting...");
 
             const castContext = cast.framework.CastContext.getInstance();
@@ -50,33 +60,38 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
-            // Listen for any session change
-            castContext.addEventListener(
-                cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-                (event) => {
-                    if (event.sessionState === cast.framework.SessionState.CONNECTED) {
-                        currentSession = event.session;
-                        updateStatus("✅ Connected to TV!");
-                        console.log("Session captured via event listener");
-                    }
-                }
-            );
-
-            // Also try direct request
             castContext.requestSession((session) => {
                 currentSession = session;
-                updateStatus("✅ Connected to TV!");
+                log("✅ Session received in callback");
+                updateStatus("✅ Connected!");
             }, (err) => {
-                console.error(err);
+                log("❌ requestSession error: " + err);
+                updateStatus("Connection error");
             });
         }
 
         function sendMessage(data) {
-            if (!currentSession) {
-                alert("Please connect to the TV first");
-                return;
+            log("Sending: " + data.command);
+            
+            if (currentSession) {
+                log("Using existing session");
+                currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data)
+                    .then(() => log("Message sent successfully"))
+                    .catch(err => log("Send failed: " + err));
+            } else {
+                log("No session object - attempting direct send anyway");
+                const castContext = cast.framework.CastContext.getInstance();
+                const session = castContext.getCurrentSession();
+                if (session) {
+                    session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
+                        .then(() => log("Sent via getCurrentSession()"))
+                        .catch(err => log("Still failed: " + err));
+                } else {
+                    log("WARNING: No session found at all");
+                    // Force send anyway (for testing)
+                    alert("No session detected - sending anyway for debugging");
+                }
             }
-            currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data);
         }
 
         function sendStart() {
