@@ -3,47 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Gym Timer Controller</title>
+    <title>Asset Gym Timer Controller - Debug</title>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 25px; background: #1a1a1a; color: white; max-width: 720px; margin: 0 auto; }
-        h1 { text-align: center; }
-        .status { padding: 15px; margin: 15px 0; background: #333; border-radius: 8px; text-align: center; font-weight: bold; }
-        input, button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
-        input { background: #333; color: white; border: 1px solid #555; }
-        button.green { background: #5cb85c; color: white; font-weight: bold; }
-        button.red { background: #d9534f; color: white; font-weight: bold; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; max-width: 800px; margin: 0 auto; line-height: 1.5; }
+        .status { padding: 12px; margin: 10px 0; background: #333; border-radius: 8px; }
+        button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
+        button.green { background: #5cb85c; color: white; }
+        button.red { background: #d9534f; color: white; }
+        #log { background: #111; padding: 10px; font-family: monospace; font-size: 0.9em; max-height: 300px; overflow-y: scroll; }
     </style>
 </head>
 <body>
-    <h1>Asset Gym Timer Controller</h1>
+    <h1>Asset Gym Timer Controller - Debug</h1>
     <div class="status" id="status">Not connected</div>
+    <div id="log"></div>
 
     <button class="green" onclick="connectCast()">🔗 Connect to Google TV</button>
+    <button onclick="checkSession()">Check Session Status</button>
 
     <h2>Timer Settings</h2>
-    <input type="number" id="get-ready" value="10" placeholder="Get Ready (sec)">
-    <input type="text" id="round-time" value="04:00" placeholder="Round Time (MM:SS)">
-    <input type="number" id="rest1" value="30" placeholder="Short Rest (sec)">
-    <input type="number" id="rest2" value="30" placeholder="Long Rest (sec)">
-    <input type="number" id="rounds" value="4" placeholder="Total Rounds">
+    <input type="number" id="get-ready" value="10">
+    <input type="text" id="round-time" value="04:00">
+    <input type="number" id="rest1" value="30">
+    <input type="number" id="rest2" value="30">
+    <input type="number" id="rounds" value="4">
 
     <button class="green" onclick="sendStart()">▶️ START TIMER</button>
-    <button onclick="sendPause()">⏸️ PAUSE</button>
-    <button onclick="sendResume()">▶️ RESUME</button>
-    <button class="red" onclick="sendReset()">🔄 RESET</button>
 
     <script>
         let session = null;
         const APP_ID = "BCFFA301";
+        const logEl = document.getElementById('log');
+
+        function log(msg) {
+            console.log(msg);
+            logEl.innerHTML += msg + "<br>";
+            logEl.scrollTop = logEl.scrollHeight;
+        }
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
         }
 
         function connectCast() {
-            updateStatus("Connecting...");
-            
+            log("Attempting to connect...");
+            updateStatus("Connecting to Google TV...");
+
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
                 receiverApplicationId: APP_ID,
@@ -52,23 +58,30 @@
 
             castContext.requestSession((s) => {
                 session = s;
+                log("✅ requestSession callback fired - Session received");
+                log("Session object: " + (s ? "valid" : "null"));
                 updateStatus("✅ Connected to TV!");
-                console.log("Session established", s);
             }, (error) => {
-                console.error("Connection error:", error);
-                updateStatus("❌ Connection failed");
+                log("❌ requestSession error: " + error);
+                updateStatus("Connection failed");
             });
         }
 
+        function checkSession() {
+            log("Session check: " + (session ? "EXISTS" : "NULL"));
+            log("Session ID: " + (session ? session.getSessionId() : "N/A"));
+        }
+
         function sendMessage(data) {
+            log("sendMessage called with: " + JSON.stringify(data));
             if (!session) {
+                log("ERROR: session is still null");
                 alert("Please connect to the TV first");
                 return;
             }
-            console.log("Sending message:", data);
             session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
-                .then(() => console.log("Message sent successfully"))
-                .catch(err => console.error("Send error:", err));
+                .then(() => log("Message sent successfully"))
+                .catch(err => log("Send failed: " + err));
         }
 
         function sendStart() {
@@ -81,10 +94,6 @@
             };
             sendMessage({ command: 'LOAD_AND_START', config: config });
         }
-
-        function sendPause()  { sendMessage({ command: 'PAUSE' }); }
-        function sendResume() { sendMessage({ command: 'RESUME' }); }
-        function sendReset()  { sendMessage({ command: 'RESET' }); }
     </script>
 </body>
 </html>
