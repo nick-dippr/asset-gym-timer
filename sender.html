@@ -3,23 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Gym Timer Controller - Debug</title>
+    <title>Asset Gym Timer Controller</title>
     <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; max-width: 800px; margin: 0 auto; line-height: 1.5; }
-        .status { padding: 12px; margin: 10px 0; background: #333; border-radius: 8px; font-weight: bold; }
-        #log { background: #111; padding: 10px; font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: scroll; }
-        button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
+        body { font-family: Arial, sans-serif; padding: 25px; background: #1a1a1a; color: white; max-width: 720px; margin: 0 auto; }
+        .status { padding: 15px; margin: 15px 0; background: #333; border-radius: 8px; text-align: center; font-weight: bold; }
+        button { padding: 16px; margin: 10px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
         button.green { background: #5cb85c; color: white; }
+        button.red { background: #d9534f; color: white; }
     </style>
 </head>
 <body>
-    <h1>Asset Gym Timer Controller - Debug</h1>
+    <h1>Asset Gym Timer Controller</h1>
     <div class="status" id="status">Not connected</div>
-    <div id="log"></div>
 
     <button class="green" onclick="connectCast()">🔗 Connect to Google TV</button>
-    <button onclick="checkSession()">Check Session</button>
 
     <h2>Timer Settings</h2>
     <input type="number" id="get-ready" value="10">
@@ -29,24 +27,19 @@
     <input type="number" id="rounds" value="4">
 
     <button class="green" onclick="sendStart()">▶️ START TIMER</button>
+    <button onclick="sendPause()">⏸️ PAUSE</button>
+    <button onclick="sendResume()">▶️ RESUME</button>
+    <button class="red" onclick="sendReset()">🔄 RESET</button>
 
     <script>
         let currentSession = null;
         const APP_ID = "BCFFA301";
-        const logEl = document.getElementById('log');
-
-        function log(msg) {
-            console.log(msg);
-            logEl.innerHTML += new Date().toLocaleTimeString() + ": " + msg + "<br>";
-            logEl.scrollTop = logEl.scrollHeight;
-        }
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
         }
 
         function connectCast() {
-            log("=== Starting connection attempt ===");
             updateStatus("Connecting...");
 
             const castContext = cast.framework.CastContext.getInstance();
@@ -55,34 +48,35 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
+            // Listen for session events
+            castContext.addEventListener(
+                cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+                (event) => {
+                    console.log("Session state changed:", event);
+                    if (event.sessionState === cast.framework.SessionState.CONNECTED) {
+                        currentSession = event.session;
+                        updateStatus("✅ Connected to TV!");
+                        console.log("Session saved:", currentSession);
+                    }
+                }
+            );
+
             castContext.requestSession((session) => {
                 currentSession = session;
-                log("✅ SUCCESS: Session received!");
-                log("Session ID: " + session.getSessionId());
                 updateStatus("✅ Connected to TV!");
-            }, (errorCode) => {
-                log("❌ FAILED: " + errorCode);
+                console.log("Direct callback - session saved");
+            }, (error) => {
                 updateStatus("Connection failed");
+                console.error(error);
             });
         }
 
-        function checkSession() {
-            log("Current session is: " + (currentSession ? "VALID" : "NULL"));
-            if (currentSession) {
-                log("Session ID = " + currentSession.getSessionId());
-            }
-        }
-
         function sendMessage(data) {
-            log("Attempting to send: " + data.command);
             if (!currentSession) {
-                log("ERROR: No active session");
                 alert("Please connect to the TV first");
                 return;
             }
-            currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data)
-                .then(() => log("Message sent successfully"))
-                .catch(err => log("Send error: " + err));
+            currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data);
         }
 
         function sendStart() {
@@ -95,6 +89,10 @@
             };
             sendMessage({ command: 'LOAD_AND_START', config: config });
         }
+
+        function sendPause()  { sendMessage({ command: 'PAUSE' }); }
+        function sendResume() { sendMessage({ command: 'RESUME' }); }
+        function sendReset()  { sendMessage({ command: 'RESET' }); }
     </script>
 </body>
 </html>
