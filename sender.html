@@ -42,7 +42,8 @@
         }
 
         function connectCast() {
-            updateStatus("Connecting to Google TV...");
+            updateStatus("Connecting...");
+            
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
                 receiverApplicationId: APP_ID,
@@ -51,10 +52,11 @@
 
             castContext.requestSession((s) => {
                 session = s;
-                updateStatus("✅ Connected successfully!");
+                updateStatus("✅ Connected to TV!");
+                console.log("Session established", s);
             }, (error) => {
-                console.error(error);
-                updateStatus("❌ Failed to connect: " + error);
+                console.error("Connection error:", error);
+                updateStatus("❌ Connection failed");
             });
         }
 
@@ -63,7 +65,10 @@
                 alert("Please connect to the TV first");
                 return;
             }
-            session.sendMessage('urn:x-cast:com.asset.gymtimer', data);
+            console.log("Sending message:", data);
+            session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
+                .then(() => console.log("Message sent successfully"))
+                .catch(err => console.error("Send error:", err));
         }
 
         function sendStart() {
