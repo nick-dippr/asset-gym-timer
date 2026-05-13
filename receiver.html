@@ -58,16 +58,18 @@
         <div id="timer-display">
             <h2 id="current-state">READY TO ROLL</h2>
             <div id="countdown">00:00</div>
-            <p id="round-info">Waiting for controller...</p>
+            <p id="round-info">Waiting for sender...</p>
         </div>
     </div>
 
     <script>
+        // DOM Elements
         const countdownDisplay = document.getElementById('countdown');
         const currentStateDisplay = document.getElementById('current-state');
         const roundInfoDisplay = document.getElementById('round-info');
         const timerContainer = document.getElementById('timer-display');
 
+        // Timer Variables
         let audioCtx = null;
         let intervalId = null;
         let totalTimeSeconds = 0;
@@ -199,8 +201,15 @@
             const options = new cast.framework.CastReceiverOptions();
             options.skipPlayersLoad = true;
 
+            // Register custom namespace
+            options.customNamespaces = {
+                'urn:x-cast:com.asset.gymtimer': cast.framework.system.MessageType.JSON
+            };
+
             context.addCustomMessageListener('urn:x-cast:com.asset.gymtimer', (event) => {
                 const data = event.data;
+                console.log("Received command:", data);
+
                 if (data.command === 'LOAD_AND_START') {
                     if (loadProgram(data.config)) {
                         currentPhaseIndex = -1;
@@ -228,7 +237,8 @@
             });
 
             context.start(options);
-            console.log('✅ Asset Gym Timer v2.1 Receiver Ready');
+            console.log("✅ Asset Gym Timer Receiver v2.1 Started");
+            updateDisplay('READY TO ROLL', 0, 0);
         });
     </script>
 </body>
