@@ -32,8 +32,8 @@
     <button class="red" onclick="sendReset()">🔄 RESET</button>
 
     <script>
-        let currentSession = null;
         const APP_ID = "BCFFA301";
+        let castSession = null;
 
         function updateStatus(text) {
             document.getElementById('status').textContent = text;
@@ -48,35 +48,22 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
-            // Listen for session events
-            castContext.addEventListener(
-                cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-                (event) => {
-                    console.log("Session state changed:", event);
-                    if (event.sessionState === cast.framework.SessionState.CONNECTED) {
-                        currentSession = event.session;
-                        updateStatus("✅ Connected to TV!");
-                        console.log("Session saved:", currentSession);
-                    }
-                }
-            );
-
+            // Force launch the receiver
             castContext.requestSession((session) => {
-                currentSession = session;
-                updateStatus("✅ Connected to TV!");
-                console.log("Direct callback - session saved");
-            }, (error) => {
-                updateStatus("Connection failed");
-                console.error(error);
+                castSession = session;
+                updateStatus("✅ Connected!");
+            }, (err) => {
+                updateStatus("Connection error");
+                console.error(err);
             });
         }
 
         function sendMessage(data) {
-            if (!currentSession) {
-                alert("Please connect to the TV first");
+            if (!castSession) {
+                alert("Not connected yet");
                 return;
             }
-            currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data);
+            castSession.sendMessage('urn:x-cast:com.asset.gymtimer', data);
         }
 
         function sendStart() {
@@ -87,7 +74,7 @@
                 rest2: parseInt(document.getElementById('rest2').value) || 30,
                 totalRounds: parseInt(document.getElementById('rounds').value) || 4
             };
-            sendMessage({ command: 'LOAD_AND_START', config: config });
+            sendMessage({ command: 'LOAD_AND_START', config });
         }
 
         function sendPause()  { sendMessage({ command: 'PAUSE' }); }
