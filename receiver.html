@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Gym Timer</title>
+    
+    <!-- Cast Receiver Framework -->
+    <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+
+    <style>
+        :root {
+            --color-round-active: #5cb85c;
+            --color-rest-blue: #004C99;
+            --color-pause-purple: #5B2C6F;
+            --color-warning-soft: #f0ad4e;
+            --color-warning-hard: #d9534f;
+        }
+        body {
+            font-family: 'Arial Black', sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            text-align: center;
+        }
+        #timer-display {
+            margin: 40px auto;
+            padding: 60px 40px;
+            border-radius: 20px;
+            background: #2c2c2c;
+            transition: background-color 0.5s ease;
+            width: 95%;
+        }
+        #current-state { font-size: 7vw; font-weight: bold; margin: 0 0 30px 0; }
+        #countdown { font-size: 28vw; font-weight: 900; line-height: 1; margin: 10px 0; text-shadow: 0 0 30px rgba(0,0,0,0.6); }
+        #round-info { font-size: 4.5vw; color: #ccc; margin: 30px 0 0 0; }
+
+        .state-active-round { background-color: var(--color-round-active) !important; }
+        .state-rest { background-color: var(--color-rest-blue) !important; }
+        .state-warning-soft { background-color: var(--color-warning-soft) !important; }
+        .state-warning-hard { background-color: var(--color-warning-hard) !important; }
+        .state-ready, .state-finished { background-color: #222222 !important; }
+        .state-paused { background-color: var(--color-pause-purple) !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="timer-display">
+            <h2 id="current-state">READY TO ROLL</h2>
+            <div id="countdown">00:00</div>
+            <p id="round-info">Waiting for controller...</p>
+        </div>
+    </div>
+
+    <script>
+        const countdownDisplay = document.getElementById('countdown');
+        const currentStateDisplay = document.getElementById('current-state');
+        const roundInfoDisplay = document.getElementById('round-info');
+        const timerContainer = document.getElementById('timer-display');
+
+        let audioCtx = null;
+        let intervalId = null;
+        let totalTimeSeconds = 0;
+        let activeRoutine = [];
+        let currentPhaseIndex = 0;
+        let currentRoundNumber = 0;
+        let isRunning = false;
+        let isPaused = false;
+        let totalActualRounds = 0;
+
+        const parseTimeToSeconds = (timeStr) => {
+            const parts = timeStr.split(':');
+            return (parseInt(parts[0]||0) * 60) + parseInt(parts[1]||0);
+        };
+
+        const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        };
+
+        const playTone = (type) => {
+            if (!audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'short') {
+                oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(800, now);
+                gainNode.gain.setValueAtTime(0.5, now);
+                oscillator.start(now); oscillator.stop(now + 0.5);
+            } else {
+                oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(1600, now);
+                gainNode.gain.setValueAtTime(1.0, now);
+                oscillator.start(now); oscillator.stop(now + 1.0);
+            }
+        };
+
+        const updateDisplay = (state, time, roundNum) => {
+            countdownDisplay.textContent = formatTime(time);
+            currentStateDisplay.textContent = state;
+            roundInfoDisplay.textContent = roundNum > 0 ? `ROUND ${roundNum} OF ${totalActualRounds}` : 'ASSET GYM TIMER';
+
+            let stateClass = 'state-ready';
+            if (state === 'FINISHED') stateClass = 'state-finished';
+            else if (isPaused) stateClass = 'state-paused';
+            else if (isRunning && time > 0 && time <= 5) stateClass = 'state-warning-hard';
+            else if (isRunning && time > 0 && time <= 15) stateClass = 'state-warning-soft';
+            else if (state.includes('ROUND')) stateClass = 'state-active-round';
+            else if (state.includes('REST') || state === 'GET READY') stateClass = 'state-rest';
+
+            timerContainer.classList.remove('state-finished','state-ready','state-warning-hard','state-warning-soft','state-rest','state-active-round','state-paused');
+            timerContainer.classList.add(stateClass);
+        };
+
+        const loadProgram = (config) => {
+            activeRoutine = [];
+            currentRoundNumber = 0;
+            const roundDuration = parseTimeToSeconds(config.roundTime);
+            const numRounds = config.totalRounds;
+
+            if (roundDuration <= 0 || numRounds <= 0) return false;
+
+            if (config.getReady > 0) {
+                activeRoutine.push({ type: 'REST', duration: config.getReady, isGetReady: true });
+            }
+
+            for (let i = 0; i < numRounds; i++) {
+                activeRoutine.push({ type: 'ROUND', duration: roundDuration });
+                if (i < numRounds - 1) {
+                    const restDuration = (i + 1) % 2 === 0 ? config.rest2 : config.rest1;
+                    if (restDuration > 0) activeRoutine.push({ type: 'REST', duration: restDuration });
+                }
+            }
+            totalActualRounds = activeRoutine.filter(p => p.type === 'ROUND').length;
+            return true;
+        };
+
+        const switchPhase = () => {
+            if (currentPhaseIndex >= 0 && currentPhaseIndex < activeRoutine.length) {
+                const prev = activeRoutine[currentPhaseIndex];
+                playTone(prev.type === 'ROUND' ? 'end' : 'start');
+            }
+
+            currentPhaseIndex++;
+            if (currentPhaseIndex >= activeRoutine.length) {
+                clearInterval(intervalId);
+                isRunning = false; isPaused = false;
+                updateDisplay('FINISHED', 0, currentRoundNumber);
+                return;
+            }
+
+            const next = activeRoutine[currentPhaseIndex];
+            totalTimeSeconds = next.duration;
+            if (next.type === 'ROUND') currentRoundNumber++;
+
+            tick();
+            intervalId = setInterval(tick, 1000);
+        };
+
+        const tick = () => {
+            if (totalTimeSeconds <= 0) {
+                clearInterval(intervalId);
+                switchPhase();
+                return;
+            }
+            const phase = activeRoutine[currentPhaseIndex];
+            const stateText = phase.isGetReady ? 'GET READY' : (phase.type === 'ROUND' ? `ROUND ${currentRoundNumber}` : 'REST');
+            if (totalTimeSeconds <= 3 && totalTimeSeconds > 0) playTone('short');
+            updateDisplay(stateText, totalTimeSeconds, currentRoundNumber);
+            totalTimeSeconds--;
+        };
+
+        const resetTimer = () => {
+            clearInterval(intervalId);
+            intervalId = null;
+            isRunning = false; isPaused = false;
+            totalTimeSeconds = 0; currentPhaseIndex = 0; currentRoundNumber = 0;
+            updateDisplay('READY TO ROLL', 0, 0);
+        };
+
+        // ==================== CAST RECEIVER SETUP ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            const context = cast.framework.CastReceiverContext.getInstance();
+            const options = new cast.framework.CastReceiverOptions();
+            options.skipPlayersLoad = true;
+
+            context.addCustomMessageListener('urn:x-cast:com.asset.gymtimer', (event) => {
+                const data = event.data;
+                if (data.command === 'LOAD_AND_START') {
+                    if (loadProgram(data.config)) {
+                        currentPhaseIndex = -1;
+                        isRunning = true;
+                        isPaused = false;
+                        switchPhase();
+                    }
+                } else if (data.command === 'PAUSE') {
+                    if (isRunning) {
+                        isPaused = true;
+                        clearInterval(intervalId);
+                        updateDisplay('PAUSED', totalTimeSeconds + 1, currentRoundNumber);
+                    }
+                } else if (data.command === 'RESUME') {
+                    if (isPaused) {
+                        isPaused = false;
+                        intervalId = setInterval(tick, 1000);
+                        const phase = activeRoutine[currentPhaseIndex];
+                        const txt = phase.isGetReady ? 'GET READY' : (phase.type === 'ROUND' ? `ROUND ${currentRoundNumber}` : 'REST');
+                        updateDisplay(txt, totalTimeSeconds + 1, currentRoundNumber);
+                    }
+                } else if (data.command === 'RESET') {
+                    resetTimer();
+                }
+            });
+
+            context.start(options);
+            console.log('✅ Asset Gym Timer v2.1 Receiver Ready');
+        });
+    </script>
+</body>
+</html>
