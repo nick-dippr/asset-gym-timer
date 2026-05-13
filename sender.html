@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Gym Timer Controller</title>
+    <script src="https://www.gstatic.com/cvjs/v1.0.0/cast_sender.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1a1a1a; color: white; max-width: 700px; margin: 0 auto; }
+        h1 { text-align: center; }
+        input, button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
+        input { background: #333; color: white; border: 1px solid #555; }
+        button { background: #5cb85c; color: white; border: none; font-weight: bold; cursor: pointer; }
+        button.red { background: #d9534f; }
+        .status { text-align: center; margin: 15px 0; font-weight: bold; color: #5cb85c; }
+    </style>
+</head>
+<body>
+    <h1>Asset Gym Timer Controller</h1>
+    <div class="status" id="status">Not connected</div>
+
+    <button onclick="connectCast()">🔗 Connect to Google TV / Chromecast</button>
+
+    <input type="number" id="get-ready" value="10" placeholder="Get Ready (seconds)">
+    <input type="text" id="round-time" value="04:00" placeholder="Round Time (MM:SS)">
+    <input type="number" id="rest1" value="30" placeholder="Short Rest (seconds)">
+    <input type="number" id="rest2" value="30" placeholder="Long Rest (seconds)">
+    <input type="number" id="rounds" value="4" placeholder="Total Rounds">
+
+    <button onclick="sendStart()">▶️ START TIMER</button>
+    <button onclick="sendPause()">⏸️ PAUSE</button>
+    <button onclick="sendResume()">▶️ RESUME</button>
+    <button onclick="sendReset()" class="red">🔄 RESET</button>
+
+    <script>
+        let session = null;
+        const APP_ID = "YOUR_APP_ID_HERE";   // ← Replace with your real App ID
+
+        function updateStatus(text) {
+            document.getElementById('status').textContent = text;
+        }
+
+        function connectCast() {
+            const castContext = cast.framework.CastContext.getInstance();
+            castContext.setOptions({
+                receiverApplicationId: APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+
+            castContext.requestSession((s) => {
+                session = s;
+                updateStatus("✅ Connected to TV");
+            }, (err) => alert("Connection failed: " + err));
+        }
+
+        function sendMessage(data) {
+            if (!session) {
+                alert("Please connect to Chromecast first");
+                return;
+            }
+            session.sendMessage('urn:x-cast:com.asset.gymtimer', data);
+        }
+
+        function sendStart() {
+            const config = {
+                getReady: parseInt(document.getElementById('get-ready').value) || 10,
+                roundTime: document.getElementById('round-time').value || "04:00",
+                rest1: parseInt(document.getElementById('rest1').value) || 30,
+                rest2: parseInt(document.getElementById('rest2').value) || 30,
+                totalRounds: parseInt(document.getElementById('rounds').value) || 4
+            };
+            sendMessage({ command: 'LOAD_AND_START', config: config });
+        }
+
+        function sendPause() { sendMessage({ command: 'PAUSE' }); }
+        function sendResume() { sendMessage({ command: 'RESUME' }); }
+        function sendReset() { sendMessage({ command: 'RESET' }); }
+    </script>
+</body>
+</html>
