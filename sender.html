@@ -12,12 +12,13 @@
         input { background: #333; color: white; border: 1px solid #555; }
         button { background: #5cb85c; color: white; border: none; font-weight: bold; cursor: pointer; }
         button.red { background: #d9534f; }
-        .status { text-align: center; margin: 15px 0; font-weight: bold; color: #5cb85c; }
+        .status { text-align: center; margin: 15px 0; font-weight: bold; padding: 10px; border-radius: 8px; }
+        .error { background: #d9534f; }
     </style>
 </head>
 <body>
     <h1>Asset Gym Timer Controller</h1>
-    <div class="status" id="status">Not connected</div>
+    <div class="status" id="status">Initializing Cast...</div>
 
     <button onclick="connectCast()">🔗 Connect to Google TV / Chromecast</button>
 
@@ -34,30 +35,60 @@
 
     <script>
         let session = null;
-        const APP_ID = "BCFFA301";   // ← Your App ID inserted
+        const APP_ID = "BCFFA301";
 
-        function updateStatus(text) {
-            document.getElementById('status').textContent = text;
+        function updateStatus(text, isError = false) {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = text;
+            statusEl.className = isError ? 'status error' : 'status';
         }
 
-        function connectCast() {
+        // Initialize Cast Context
+        function initializeCast() {
+            if (typeof cast === 'undefined' || typeof cast.framework === 'undefined') {
+                updateStatus("Cast SDK not loaded. Try refreshing.", true);
+                return;
+            }
+
             const castContext = cast.framework.CastContext.getInstance();
             castContext.setOptions({
                 receiverApplicationId: APP_ID,
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
+            updateStatus("Cast ready. Tap Connect button.");
+            console.log("✅ Cast framework initialized");
+        }
+
+        function connectCast() {
+            updateStatus("Searching for devices...");
+            
+            const castContext = cast.framework.CastContext.getInstance();
             castContext.requestSession((s) => {
                 session = s;
-                updateStatus("✅ Connected to TV");
-            }, (err) => {
-                alert("Connection failed: " + err);
+                updateStatus("✅ Connected to TV!");
+                console.log("Session started", s);
+            }, (errorCode) => {
+                console.error("Cast error:", errorCode);
+                updateStatus("Connection failed. Code: " + errorCode, true);
+                
+                if (errorCode === chrome.cast.ErrorCode.NO_DEVICES_AVAILABLE) {
+                    alert("No Chromecast devices found.\n\nMake sure your Google TV is on and on the same Wi-Fi.");
+                } else {
+                    alert("Failed to connect. Error: " + errorCode);
+                }
             });
         }
 
+        // Auto-initialize when page loads
+        window.addEventListener('load', () => {
+            setTimeout(initializeCast, 1500);   // Small delay for SDK to load
+        });
+
+        // Rest of your send functions (unchanged)
         function sendMessage(data) {
             if (!session) {
-                alert("Please connect to Chromecast first");
+                alert("Please connect to the TV first");
                 return;
             }
             session.sendMessage('urn:x-cast:com.asset.gymtimer', data);
