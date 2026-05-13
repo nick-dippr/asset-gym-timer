@@ -36,7 +36,6 @@
     <button class="red" onclick="sendReset()">🔄 RESET</button>
 
     <script>
-        let currentSession = null;
         const APP_ID = "BCFFA301";
         const logEl = document.getElementById('log');
 
@@ -50,8 +49,18 @@
             document.getElementById('status').textContent = text;
         }
 
+        function getCurrentSession() {
+            try {
+                const castContext = cast.framework.CastContext.getInstance();
+                return castContext.getCurrentSession();
+            } catch (e) {
+                log("Error getting session: " + e);
+                return null;
+            }
+        }
+
         function connectCast() {
-            log("=== Connect attempt started ===");
+            log("=== Connect attempt ===");
             updateStatus("Connecting...");
 
             const castContext = cast.framework.CastContext.getInstance();
@@ -60,38 +69,26 @@
                 autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
             });
 
-            castContext.requestSession((session) => {
-                currentSession = session;
-                log("✅ Session received in callback");
-                updateStatus("✅ Connected!");
+            castContext.requestSession(() => {
+                log("Session started via requestSession");
+                updateStatus("✅ Connected to TV!");
             }, (err) => {
-                log("❌ requestSession error: " + err);
-                updateStatus("Connection error");
+                log("requestSession error: " + err);
             });
         }
 
         function sendMessage(data) {
-            log("Sending: " + data.command);
-            
-            if (currentSession) {
-                log("Using existing session");
-                currentSession.sendMessage('urn:x-cast:com.asset.gymtimer', data)
-                    .then(() => log("Message sent successfully"))
-                    .catch(err => log("Send failed: " + err));
-            } else {
-                log("No session object - attempting direct send anyway");
-                const castContext = cast.framework.CastContext.getInstance();
-                const session = castContext.getCurrentSession();
-                if (session) {
-                    session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
-                        .then(() => log("Sent via getCurrentSession()"))
-                        .catch(err => log("Still failed: " + err));
-                } else {
-                    log("WARNING: No session found at all");
-                    // Force send anyway (for testing)
-                    alert("No session detected - sending anyway for debugging");
-                }
+            const session = getCurrentSession();
+            if (!session) {
+                log("WARNING: No active session found");
+                alert("No active session - try reconnecting");
+                return;
             }
+
+            log("Sending command: " + data.command);
+            session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
+                .then(() => log("✅ Command sent successfully"))
+                .catch(err => log("❌ Send failed: " + err));
         }
 
         function sendStart() {
