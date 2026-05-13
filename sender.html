@@ -13,7 +13,6 @@
         input, button { padding: 15px; margin: 8px 0; width: 100%; font-size: 1.1em; border-radius: 8px; }
         input { background: #333; color: white; border: 1px solid #555; }
         button.green { background: #5cb85c; color: white; font-weight: bold; }
-        button.red { background: #d9534f; color: white; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -33,7 +32,7 @@
     <button class="green" onclick="sendStart()">▶️ START TIMER</button>
     <button onclick="sendPause()">⏸️ PAUSE</button>
     <button onclick="sendResume()">▶️ RESUME</button>
-    <button class="red" onclick="sendReset()">🔄 RESET</button>
+    <button onclick="sendReset()">🔄 RESET</button>
 
     <script>
         const APP_ID = "BCFFA301";
@@ -45,50 +44,36 @@
             logEl.scrollTop = logEl.scrollHeight;
         }
 
-        function updateStatus(text) {
-            document.getElementById('status').textContent = text;
-        }
-
-        function getCurrentSession() {
+        function getSession() {
             try {
-                const castContext = cast.framework.CastContext.getInstance();
-                return castContext.getCurrentSession();
-            } catch (e) {
-                log("Error getting session: " + e);
-                return null;
-            }
+                return cast.framework.CastContext.getInstance().getCurrentSession();
+            } catch(e) { return null; }
         }
 
-        function connectCast() {
-            log("=== Connect attempt ===");
-            updateStatus("Connecting...");
-
-            const castContext = cast.framework.CastContext.getInstance();
-            castContext.setOptions({
-                receiverApplicationId: APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-            });
-
-            castContext.requestSession(() => {
-                log("Session started via requestSession");
-                updateStatus("✅ Connected to TV!");
-            }, (err) => {
-                log("requestSession error: " + err);
-            });
-        }
-
-        function sendMessage(data) {
-            const session = getCurrentSession();
+        function sendMessage(data, retry = 0) {
+            const session = getSession();
             if (!session) {
-                log("WARNING: No active session found");
-                alert("No active session - try reconnecting");
+                log("No session found");
                 return;
             }
 
-            log("Sending command: " + data.command);
+            log("Sending: " + data.command);
             session.sendMessage('urn:x-cast:com.asset.gymtimer', data)
-                .then(() => log("✅ Command sent successfully"))
-                .catch(err => log("❌ Send failed: " + err));
+                .then(() => log("✅ Sent successfully"))
+                .catch(err => {
+                    log("❌ Send failed: " + err);
+                    if (retry < 2) {
+                        log("Retrying in 1s...");
+                        setTimeout(() => sendMessage(data, retry + 1), 1000);
+                    }
+                });
+        }
+
+        function connectCast() {
+            log("Connecting...");
+            const castContext = cast.framework.CastContext.getInstance();
+            castContext.setOptions({ receiverApplicationId: APP_ID });
+            castContext.requestSession(() => log("Launch requested"), (e) => log("Launch error: " + e));
         }
 
         function sendStart() {
